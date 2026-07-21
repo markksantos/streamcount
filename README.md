@@ -20,20 +20,22 @@ Channels, port, and poll interval live in `config.json`.
 |---|---|---|
 | YouTube | scrapes `youtube.com/@handle/live` | none |
 | Twitch | public web GQL endpoint | none |
-| Kick | official API (`api.kick.com/public/v1`) | Kick dev app client id + secret |
+| Kick | `kick_probe.py` via curl_cffi (Chrome TLS impersonation beats Cloudflare) | none |
 | X | — | no public/free API for broadcast viewers; phase 2 |
 
-## Kick setup (one-time)
+## Kick
 
-1. Enable 2FA on your Kick account, then go to https://kick.com/settings/developer and create an app (any redirect URL works — we only use client-credentials).
-2. Put the credentials in `secrets.env` in this folder (git-ignored):
+Kick's Cloudflare blocks curl/Node/headless-Chrome, so the server shells out to
+`.venv/bin/python kick_probe.py <slug>`, which uses `curl_cffi` to impersonate a
+real Chrome TLS handshake. One-time setup (already done):
 
+```sh
+python3 -m venv .venv && ./.venv/bin/pip install curl_cffi
 ```
-KICK_CLIENT_ID=...
-KICK_CLIENT_SECRET=...
-```
 
-3. Restart the server. Kick row flips from "needs API keys" to a live count.
+If the `.venv` is missing, the server falls back to Kick's official API
+(`KICK_CLIENT_ID`/`KICK_CLIENT_SECRET` in git-ignored `secrets.env`), else
+shows "needs API keys".
 
 ## Notes
 

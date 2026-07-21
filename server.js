@@ -56,8 +56,26 @@ async function fetchTwitch(login) {
   return { live: true, viewers: stream.viewersCount ?? 0, status: "ok" };
 }
 
+// Preferred path: local python + curl_cffi (Chrome TLS impersonation gets past
+// Kick's Cloudflare, no API keys needed). Falls back to the official API if
+// KICK_CLIENT_ID/SECRET are set, else reports needs_keys.
+const { execFile } = require("child_process");
+const KICK_PY = path.join(ROOT, ".venv", "bin", "python");
+const KICK_PROBE = path.join(ROOT, "kick_probe.py");
+
+function kickViaProbe(slug) {
+  return new Promise((resolve, reject) => {
+    execFile(KICK_PY, [KICK_PROBE, slug], { timeout: 20000 }, (err, stdout) => {
+      if (err) return reject(new Error(`kick probe: ${err.message.split("\n")[0]}`));
+      const r = JSON.parse(stdout);
+      resolve({ live: r.live, viewers: r.viewers, status: r.live ? "ok" : "offline" });
+    });
+  });
+}
+
 let kickToken = null; // { token, expiresAt }
 async function fetchKick(slug) {
+  if (fs.existsSync(KICK_PY)) return kickViaProbe(slug);
   const id = process.env.KICK_CLIENT_ID;
   const secret = process.env.KICK_CLIENT_SECRET;
   if (!id || !secret) return { live: false, viewers: null, status: "needs_keys" };
