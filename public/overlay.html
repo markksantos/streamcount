@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>streamcount overlay</title>
+<style>
+  body {
+    margin: 0; background: transparent; overflow: hidden;
+    font-family: -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif;
+    display: flex; align-items: center; gap: .45em; padding: .3em .5em;
+    color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.6);
+  }
+  .dot { width: .55em; height: .55em; border-radius: 50%; background: #ef4444;
+    animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+  #n { font-size: 2.4em; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+</style>
+</head>
+<body>
+  <span class="dot"></span><span id="n">–</span>
+<script>
+  async function refresh() {
+    try {
+      const s = await (await fetch("/api/viewers")).json();
+      document.getElementById("n").textContent = s.total.toLocaleString();
+    } catch (e) {}
+  }
+  refresh();
+  setInterval(refresh, 5000);
+</script>
+</body>
+</html>

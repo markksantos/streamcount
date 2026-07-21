@@ -1,0 +1,10 @@
+{
+  "port": 5959,
+  "pollSeconds": 15,
+  "channels": {
+    "youtube": "markksantos",
+    "twitch": "markksantos",
+    "kick": "markksantos",
+    "x": "markksantos"
+  }
+}
