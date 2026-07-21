@@ -58,7 +58,9 @@
       document.getElementById("total").textContent = s.total.toLocaleString();
       const anyLive = Object.values(s.platforms).some(p => p.live);
       document.getElementById("livedot").className = "dot" + (anyLive ? "" : " off");
-      document.getElementById("platforms").innerHTML = Object.entries(s.platforms).map(([k, p]) => {
+      const order = ["youtube", "twitch", "kick", "x"];
+      document.getElementById("platforms").innerHTML = order
+        .filter(k => s.platforms[k]).map(k => [k, s.platforms[k]]).map(([k, p]) => {
         const active = p.status === "ok" && p.live;
         const right = active
           ? `<span class="count">${p.viewers.toLocaleString()}</span>`
