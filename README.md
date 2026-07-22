@@ -37,6 +37,22 @@ If the `.venv` is missing, the server falls back to Kick's official API
 (`KICK_CLIENT_ID`/`KICK_CLIENT_SECRET` in git-ignored `secrets.env`), else
 shows "needs API keys".
 
+## Public dashboard (here.now)
+
+Bookmarkable from anywhere: https://pastel-hollow-jmxj.here.now/ (overlay at
+`/overlay.html`). Push model — this Mac's poller PATCHes one record in the
+site's Site Data collection (`stats`) after each poll (only on change, plus a
+4-min heartbeat); the static page reads it from browser JS every 30s. Writes
+need the owner API key in `~/.herenow/credentials`; the page and site files
+contain no secrets, and nothing connects inbound to this machine. If the
+poller stops, the page shows an amber "stale" note after 3 minutes.
+
+Site source lives in `site/`; republish after edits with:
+
+```sh
+~/.claude/skills/here-now/scripts/publish.sh ./site --slug pastel-hollow-jmxj --client claude-code
+```
+
 ## Notes
 
 - Server polls each platform every 15s; pages refresh from the local cache every 5s.

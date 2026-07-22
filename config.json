@@ -1,6 +1,7 @@
 {
   "port": 5959,
   "pollSeconds": 15,
+  "herenow": { "slug": "pastel-hollow-jmxj" },
   "channels": {
     "youtube": "markksantos",
     "twitch": "markksantos",

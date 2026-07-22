@@ -151,6 +151,64 @@ async function poll() {
     .map(([n, p]) => `${n}:${p.status === "ok" ? p.viewers : p.status}`)
     .join(" ");
   console.log(`[${state.updatedAt}] total=${state.total} ${parts}`);
+  pushToHereNow().catch((e) => console.error(`herenow push failed: ${e.message}`));
+}
+
+// ------------------------------------------------- here.now Site Data push
+// Public dashboard at https://<slug>.here.now reads the newest record; only
+// the owner API key (from ~/.herenow/credentials, never in the site) can write.
+const PUSH_STATE = path.join(ROOT, ".herenow-push.json");
+const HEARTBEAT_MS = 4 * 60 * 1000;
+let lastPush = { body: null, at: 0 };
+
+function hereNowKey() {
+  try {
+    return fs.readFileSync(path.join(process.env.HOME, ".herenow", "credentials"), "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
+async function pushToHereNow() {
+  const slug = config.herenow?.slug;
+  const key = hereNowKey();
+  if (!slug || !key) return;
+
+  const body = JSON.stringify({
+    total: state.total,
+    platforms: state.platforms,
+    polled_at: state.updatedAt,
+  });
+  const changed = body !== lastPush.body;
+  if (!changed && Date.now() - lastPush.at < HEARTBEAT_MS) return;
+
+  const base = `https://here.now/api/v1/publishes/${slug}/data/stats`;
+  const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+
+  let recordId = null;
+  try {
+    recordId = JSON.parse(fs.readFileSync(PUSH_STATE, "utf8")).recordId;
+  } catch {}
+
+  if (recordId) {
+    const res = await fetch(`${base}/${recordId}`, { method: "PATCH", headers, body });
+    if (res.ok) {
+      lastPush = { body, at: Date.now() };
+      return;
+    }
+    if (res.status !== 404) throw new Error(`PATCH ${res.status}`);
+    recordId = null; // record gone; fall through to insert
+  }
+
+  const res = await fetch(base, {
+    method: "POST",
+    headers: { ...headers, "Idempotency-Key": require("crypto").randomUUID() },
+    body,
+  });
+  if (!res.ok) throw new Error(`POST ${res.status}`);
+  const { record } = await res.json();
+  fs.writeFileSync(PUSH_STATE, JSON.stringify({ recordId: record.id }));
+  lastPush = { body, at: Date.now() };
 }
 
 // ---------------------------------------------------------------- server
