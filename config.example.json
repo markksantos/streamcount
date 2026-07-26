@@ -1,0 +1,11 @@
+{
+  "port": 5959,
+  "pollSeconds": 15,
+  "herenow": { "slug": "" },
+  "channels": {
+    "youtube": "yourhandle",
+    "twitch": "yourhandle",
+    "kick": "yourhandle",
+    "x": "yourhandle"
+  }
+}

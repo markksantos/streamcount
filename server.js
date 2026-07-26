@@ -7,7 +7,12 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = __dirname;
-const config = JSON.parse(fs.readFileSync(path.join(ROOT, "config.json"), "utf8"));
+const CONFIG_PATH = path.join(ROOT, "config.json");
+if (!fs.existsSync(CONFIG_PATH)) {
+  console.error("No config.json — copy config.example.json to config.json and set your channel handles.");
+  process.exit(1);
+}
+const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 
 // Load optional secrets (KICK_CLIENT_ID / KICK_CLIENT_SECRET) from secrets.env — git-ignored.
 const secretsPath = path.join(ROOT, "secrets.env");
