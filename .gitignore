@@ -2,6 +2,17 @@ secrets.env
 yt-live.html
 .venv/
 .herenow/
+# …but the published Site Data schema is source, not local state.
+!site/.herenow/
+site/.herenow/*
+!site/.herenow/data.json
 .herenow-push.json
 streamcount.log
+streamcount.log.1
+watchdog.log
+watchdog.log.1
+alerts.log
+.watchdog-state.json
 config.json
+node_modules/
+.DS_Store

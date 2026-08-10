@@ -13,18 +13,34 @@
   }
   .dot { width: .55em; height: .55em; border-radius: 50%; background: #ef4444;
     animation: pulse 1.6s ease-in-out infinite; }
+  .dot.unknown { background: #f59e0b; animation: none; }
   @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
   #n { font-size: 2.4em; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  #n.unknown { opacity: .55; }
 </style>
 </head>
 <body>
-  <span class="dot"></span><span id="n">–</span>
+  <span class="dot" id="d"></span><span id="n">–</span>
 <script>
+  const STALE_MS = 3 * 60 * 1000;
+  function show(text, unknown) {
+    const n = document.getElementById("n");
+    n.textContent = text;
+    n.className = unknown ? "unknown" : "";
+    document.getElementById("d").className = "dot" + (unknown ? " unknown" : "");
+  }
   async function refresh() {
     try {
       const { records } = await (await fetch("./.herenow/data/stats?limit=1")).json();
-      if (records && records.length)
-        document.getElementById("n").textContent = (records[0].data?.total ?? 0).toLocaleString();
+      if (!records || !records.length) return;
+      const r = records[0];
+      const d = r.data || {};
+      // A frozen record or a blind poller both mean "unknown", not "zero".
+      const frozen = Date.now() - new Date(r.updatedAt || r.updated_at).getTime() > STALE_MS;
+      // `_poller` is the pre-republish fallback location; see site/index.html.
+      const poller = d.poller || (d.platforms && d.platforms._poller) || {};
+      const bad = frozen || (d.total_known ?? poller.total_known) === false || poller.stale === true;
+      show(bad ? "?" : (d.total ?? 0).toLocaleString(), bad);
     } catch (e) {}
   }
   refresh();

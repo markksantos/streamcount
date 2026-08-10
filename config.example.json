@@ -1,6 +1,16 @@
 {
   "port": 5959,
   "pollSeconds": 15,
+  "requestTimeoutSeconds": 10,
+  "retryAttempts": 2,
+  "staleAfterMinutes": 3,
+  "log": { "maxMegabytes": 5, "heartbeatMinutes": 4 },
+  "alerts": {
+    "sink": "log",
+    "repeatMinutes": 15,
+    "webhookUrl": "",
+    "command": null
+  },
   "herenow": { "slug": "" },
   "channels": {
     "youtube": "yourhandle",

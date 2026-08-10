@@ -1,0 +1,20 @@
+{
+  "collections": {
+    "stats": {
+      "fields": {
+        "total": { "type": "integer", "required": true, "minimum": 0 },
+        "total_known": { "type": "boolean" },
+        "confidence": { "type": "string", "maxLength": 16 },
+        "platforms": { "type": "object" },
+        "poller": { "type": "object" },
+        "polled_at": { "type": "string", "maxLength": 40 }
+      },
+      "access": {
+        "read": "public",
+        "insert": "owner",
+        "update": "owner",
+        "delete": "owner"
+      }
+    }
+  }
+}

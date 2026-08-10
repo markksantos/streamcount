@@ -12,18 +12,37 @@
   }
   .dot { width: .55em; height: .55em; border-radius: 50%; background: #ef4444;
     animation: pulse 1.6s ease-in-out infinite; }
+  /* Amber, not red: the count is unknown rather than zero. Never burn a
+     confident number into a scene when the poller can't vouch for it. */
+  .dot.unknown { background: #f59e0b; animation: none; }
   @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
   #n { font-size: 2.4em; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  #n.unknown { opacity: .55; }
 </style>
 </head>
 <body>
-  <span class="dot"></span><span id="n">–</span>
+  <span class="dot" id="d"></span><span id="n">–</span>
 <script>
+  let fails = 0;
+  function show(text, unknown) {
+    const n = document.getElementById("n");
+    n.textContent = text;
+    n.className = unknown ? "unknown" : "";
+    document.getElementById("d").className = "dot" + (unknown ? " unknown" : "");
+  }
   async function refresh() {
     try {
-      const s = await (await fetch("/api/viewers")).json();
-      document.getElementById("n").textContent = s.total.toLocaleString();
-    } catch (e) {}
+      const res = await fetch("/api/viewers", { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const s = await res.json();
+      fails = 0;
+      const bad = s.totalKnown === false || (s.poller && s.poller.stale);
+      show(bad ? "?" : Number(s.total || 0).toLocaleString(), bad);
+    } catch (e) {
+      // Server gone. Freezing the last number is the failure that started all
+      // of this — say "?" instead.
+      if (++fails >= 2) show("?", true);
+    }
   }
   refresh();
   setInterval(refresh, 5000);
