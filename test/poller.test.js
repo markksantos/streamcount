@@ -218,3 +218,33 @@ test("a fetcher returning junk is unknown, not a crash", async () => {
   assert.equal(snap.platforms.youtube.status, "error");
   assert.equal(snap.totalKnown, false);
 });
+
+test("SLOW onPoll: the watchdog does not re-arm while a tick is still finishing its hooks", async () => {
+  // Regression (2026-09-25): runOnce() clears `running` before awaiting onPoll (the here.now push,
+  // up to 10 s). The watchdog saw running=false + no timer and logged "no timer armed — re-arming"
+  // on ~half of all ticks, firing an extra poll each time.
+  let releasePush;
+  const pushGate = new Promise((r) => (releasePush = r));
+  const timers = [];
+  const { p } = makePoller(
+    { youtube: async () => ({ live: false, viewers: 0, status: "offline" }) },
+    {
+      onPoll: () => pushGate,
+      setTimeout: (fn, ms) => {
+        const t = { fn, ms };
+        timers.push(t);
+        return t;
+      },
+      clearTimeout: () => {},
+    }
+  );
+  p.start();
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); // poll done, push pending
+  p.watchdogCheck();
+  assert.equal(p.health.wedgeRecoveries, 0, "a tick still in its onPoll hook is not an idle loop");
+  assert.equal(timers.length, 0, "no extra poll may be scheduled while the tick is finishing");
+  releasePush();
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(timers.length, 1, "the tick re-arms itself once its hooks finish");
+  p.stop();
+});
