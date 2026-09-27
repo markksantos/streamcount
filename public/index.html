@@ -7,6 +7,7 @@
 <style>
   :root {
     --bg: #0b0d10; --fg: #f2f4f8; --dim: #6b7280; --card: #12151a;
+    --ok: #22c55e; --warn: #f59e0b; --bad: #ef4444;
   }
   * { margin: 0; box-sizing: border-box; }
   body {
@@ -29,6 +30,8 @@
     font-size: clamp(5rem, 22vw, 13rem); font-weight: 700; line-height: 1;
     font-variant-numeric: tabular-nums; letter-spacing: -.03em;
   }
+  /* When the poller can't vouch for the number, stop presenting it as fact. */
+  #total.unknown { color: var(--dim); }
   .platforms { display: flex; flex-direction: column; gap: .4rem; width: min(22rem, 90vw); }
   .row {
     display: flex; align-items: center; gap: .75rem; padding: .65rem 1rem;
@@ -38,7 +41,22 @@
   .row .name { flex: 1; color: var(--fg); }
   .row .count { font-variant-numeric: tabular-nums; font-weight: 600; }
   .row.inactive { opacity: .38; }
+  .row.unknown { opacity: .9; outline: 1px solid rgba(239,68,68,.35); }
   .row .note { font-size: .75rem; color: var(--dim); }
+  .row.unknown .note { color: var(--bad); }
+
+  /* Poller health is its own line, deliberately not mixed in with stream state:
+     "nobody is watching" and "we have no idea" are different sentences. */
+  #health {
+    display: flex; align-items: center; gap: .6em; font-size: .8rem;
+    padding: .5rem .9rem; border-radius: 999px; background: var(--card); color: var(--dim);
+    border: 1px solid transparent;
+  }
+  #health .hdot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+  #health.warn { color: var(--warn); border-color: rgba(245,158,11,.35); }
+  #health.warn .hdot { background: var(--warn); }
+  #health.bad { color: var(--bad); border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.08); }
+  #health.bad .hdot { background: var(--bad); animation: pulse 1.2s ease-in-out infinite; }
   #meta { font-size: .72rem; color: var(--dim); }
 </style>
 </head>
@@ -46,32 +64,90 @@
   <div class="label"><span class="dot off" id="livedot"></span>watching now</div>
   <div id="total">–</div>
   <div class="platforms" id="platforms"></div>
+  <div id="health"><span class="hdot"></span><span id="healthtext">connecting…</span></div>
   <div id="meta"></div>
 <script>
   const COLORS = { youtube: "#ff0033", twitch: "#9146ff", kick: "#53fc18", x: "#e7e9ea" };
   const NAMES = { youtube: "YouTube", twitch: "Twitch", kick: "Kick", x: "X" };
-  const NOTES = { needs_keys: "needs API keys", unsupported: "no API yet", error: "error", offline: "offline" };
+  const NOTES = {
+    needs_keys: "needs API keys", unsupported: "no API yet", disabled: "not configured",
+    offline: "offline", error: "unreachable", timeout: "timed out",
+  };
+  // These two statuses mean "we could not ask", not "nobody is watching".
+  const UNKNOWN = new Set(["error", "timeout"]);
+
+  // If /api/viewers itself stops answering, the server process is gone. The old
+  // page swallowed that and left the last numbers on screen forever — which is
+  // precisely how a dead poller passed for an empty stream on 2026-07-22.
+  let consecutiveFetchFailures = 0;
+  let lastGoodAt = null;
+
+  function setHealth(level, text) {
+    document.getElementById("health").className = level;
+    document.getElementById("healthtext").textContent = text;
+  }
 
   async function refresh() {
+    let s;
     try {
-      const s = await (await fetch("/api/viewers")).json();
-      document.getElementById("total").textContent = s.total.toLocaleString();
-      const anyLive = Object.values(s.platforms).some(p => p.live);
-      document.getElementById("livedot").className = "dot" + (anyLive ? "" : " off");
-      const order = ["youtube", "twitch", "kick", "x"];
-      document.getElementById("platforms").innerHTML = order
-        .filter(k => s.platforms[k]).map(k => [k, s.platforms[k]]).map(([k, p]) => {
-        const active = p.status === "ok" && p.live;
+      const res = await fetch("/api/viewers", { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      s = await res.json();
+      consecutiveFetchFailures = 0;
+      lastGoodAt = Date.now();
+    } catch (e) {
+      consecutiveFetchFailures += 1;
+      if (consecutiveFetchFailures >= 2) {
+        const ago = lastGoodAt ? Math.round((Date.now() - lastGoodAt) / 1000) + "s ago" : "never";
+        document.getElementById("total").className = "unknown";
+        document.getElementById("total").textContent = "?";
+        document.getElementById("livedot").className = "dot off";
+        setHealth("bad", `POLLER DEAD — server not answering on :5959 (last reply ${ago}). These numbers are not real.`);
+        document.getElementById("meta").textContent = "start it: launchctl kickstart -k gui/$(id -u)/com.markksantos.streamcount";
+      }
+      return;
+    }
+
+    const p = s.poller || {};
+    const totalEl = document.getElementById("total");
+    if (s.totalKnown === false || p.stale) {
+      totalEl.className = "unknown";
+      totalEl.textContent = "?";
+    } else {
+      totalEl.className = "";
+      totalEl.textContent = Number(s.total || 0).toLocaleString();
+    }
+
+    const anyLive = !p.stale && Object.values(s.platforms || {}).some(x => x.live);
+    document.getElementById("livedot").className = "dot" + (anyLive ? "" : " off");
+
+    const order = ["youtube", "twitch", "kick", "x"];
+    document.getElementById("platforms").innerHTML = order
+      .filter(k => s.platforms[k]).map(k => [k, s.platforms[k]]).map(([k, pl]) => {
+        const active = pl.status === "ok" && pl.live;
+        const unknown = UNKNOWN.has(pl.status);
         const right = active
-          ? `<span class="count">${p.viewers.toLocaleString()}</span>`
-          : `<span class="note">${NOTES[p.status] || p.status}</span>`;
-        return `<div class="row${active ? "" : " inactive"}">
+          ? `<span class="count">${Number(pl.viewers).toLocaleString()}</span>`
+          : `<span class="note">${NOTES[pl.status] || pl.status}</span>`;
+        const cls = active ? "" : unknown ? " unknown" : " inactive";
+        return `<div class="row${cls}">
           <span class="pdot" style="background:${COLORS[k]}"></span>
           <span class="name">${NAMES[k]}</span>${right}</div>`;
       }).join("");
-      document.getElementById("meta").textContent =
-        s.updatedAt ? "updated " + new Date(s.updatedAt).toLocaleTimeString() : "";
-    } catch (e) { /* server restarting; keep last numbers */ }
+
+    const age = p.lastSuccessAgeSeconds;
+    if (p.stale) {
+      setHealth("bad", `POLLER STALE — ${p.reason}. Numbers below are not trustworthy.`);
+    } else if (p.status === "degraded") {
+      setHealth("warn", `poller degraded — ${p.reason}`);
+    } else if (p.status === "starting") {
+      setHealth("warn", "poller starting — first poll in flight");
+    } else {
+      setHealth("", `poller ok — last good poll ${age == null ? "—" : age + "s"} ago, every ${p.intervalSeconds}s`);
+    }
+
+    document.getElementById("meta").textContent =
+      s.updatedAt ? "updated " + new Date(s.updatedAt).toLocaleTimeString() + " · " + (s.confidence || "") : "";
   }
   refresh();
   setInterval(refresh, 5000);

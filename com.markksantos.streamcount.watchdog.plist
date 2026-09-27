@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Dead-poller watchdog. Runs every 5 minutes, asks the poller's own
+  /api/health endpoint whether it is alive, and alerts through the sink
+  configured in config.json (default "log": nothing leaves the machine).
+
+  This is deliberately a SEPARATE agent from com.markksantos.streamcount: the
+  poller cannot report its own death, so something outside it has to ask.
+
+  Edit WorkingDirectory and the node path to match your machine, then:
+    cp com.markksantos.streamcount.watchdog.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.markksantos.streamcount.watchdog.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.markksantos.streamcount.watchdog</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/markksantos/.hermes/node/bin/node</string>
+        <string>watchdog.js</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/markksantos/Developer/Web Apps/streamcount</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/markksantos/Developer/Web Apps/streamcount/watchdog.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/markksantos/Developer/Web Apps/streamcount/watchdog.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/markksantos</string>
+        <key>PATH</key>
+        <string>/Users/markksantos/.hermes/node/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
